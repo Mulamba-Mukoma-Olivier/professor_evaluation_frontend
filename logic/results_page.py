@@ -251,7 +251,8 @@ class ResultsPageDesigner:
         y_lbl.setStyleSheet(f"color: {TEXT_MID}; font-size: 11px; font-weight: 600; background: transparent; border: none;")
         self.mw.results_year_combo = QComboBox()
         self.mw.results_year_combo.setMinimumWidth(95)
-        self.mw.results_year_combo.addItems(["2025-2026", "2024-2025", "2023-2024"])
+        self.mw.results_year_combo.setEditable(True)
+        self.mw.results_year_combo.lineEdit().setPlaceholderText("Année académique")
         self.mw.results_year_combo.setStyleSheet(COMBO_STYLE)
         row.addWidget(y_lbl)
         row.addWidget(self.mw.results_year_combo, stretch=1)
@@ -510,8 +511,6 @@ class ResultsPageDesigner:
         # ── Critères dans la grille 2 colonnes ──
         crit_results = {cr.get("criterion_id"): cr for cr in result.get("criteria", [])}
         active_crit = [c for c in (criteria or []) if c.get("active", True)]
-        if not active_crit:
-            active_crit = [{"id": i+1, "name": f"Critère {i+1}"} for i in range(10)]
 
         best_name, best_avg   = "—", -1.0
         worst_name, worst_avg = "—", 99.0
@@ -604,8 +603,6 @@ class ResultsPageDesigner:
             )
 
         active_crit = [c for c in (criteria or []) if c.get("active", True)]
-        if not active_crit:
-            active_crit = [{"id": i+1, "name": f"Critère {i+1}"} for i in range(10)]
 
         if self._grid_layout is not None:
             _clear_layout_safely(self._grid_layout)

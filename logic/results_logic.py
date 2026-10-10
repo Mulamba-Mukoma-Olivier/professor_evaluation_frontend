@@ -6,7 +6,7 @@ FramelessWindowHint avec coins arrondis, bouton de fermeture intégré et dépla
 """
 from typing import Optional, Dict, Any, List
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QCursor
+from PyQt5.QtGui import QCursor, QColor
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton,
@@ -16,20 +16,22 @@ from api.results_api import ResultsAPI
 from api.professors_api import ProfessorsAPI
 from api.courses_api import CoursesAPI
 from api.criteria_api import CriteriaAPI
+from api.evaluations_api import EvaluationsAPI
+from logic.frameless_windows import install_drag_handle
 
-# ─── Palette Dark Corporate ───────────────────────────────────────────────────
-BG       = "#0f172a"
-CARD     = "#1e293b"
-BORDER   = "#334155"
-BLUE     = "#3b82f6"
-BLUE_DIM = "#1d4ed8"
-GREEN    = "#10b981"
-LIME     = "#84cc16"
-AMBER    = "#f59e0b"
-RED      = "#ef4444"
-TEXT_HI  = "#f8fafc"
-TEXT_MID = "#cbd5e1"
-TEXT_LO  = "#94a3b8"
+# ─── Palette claire, cohérente avec le reste de l'application ─────────────────
+BG       = "#f4f8fc"
+CARD     = "#ffffff"
+BORDER   = "#dbe5f0"
+BLUE     = "#2563eb"
+BLUE_DIM = "#eff6ff"
+GREEN    = "#059669"
+LIME     = "#65a30d"
+AMBER    = "#d97706"
+RED      = "#dc2626"
+TEXT_HI  = "#123b66"
+TEXT_MID = "#456b8f"
+TEXT_LO  = "#647b94"
 
 
 def get_score_color(avg: float) -> str:
@@ -52,10 +54,10 @@ class ResultsDialog(QDialog):
     """Fenêtre modale d'affichage interactif des résultats d'évaluation (Frameless)."""
 
     def __init__(self, parent=None, professor_id: Optional[int] = None, course_id: Optional[int] = None,
-                 academic_year: str = "2025-2026", period: str = "Semestre 1"):
+                 academic_year: str = "", period: str = ""):
         super().__init__(parent)
         self.setWindowTitle("Résultats d'Évaluation — EvalPro")
-        self.setFixedWidth(780)
+        self.setFixedWidth(920)
         self.setModal(True)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -146,9 +148,9 @@ class ResultsDialog(QDialog):
 
         t_box = QVBoxLayout()
         t_box.setSpacing(4)
-        title = QLabel("Consultation des Résultats Pédagogiques")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #ffffff;")
-        subtitle = QLabel("Statistiques certifiées et moyennes calculées en temps réel par l'API REST Go")
+        title = QLabel("Résultats des évaluations")
+        title.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {TEXT_HI};")
+        subtitle = QLabel("Consultez la moyenne générale et le détail des notes par critère.")
         subtitle.setStyleSheet(f"font-size: 12px; color: {TEXT_LO};")
         t_box.addWidget(title)
         t_box.addWidget(subtitle)
@@ -173,6 +175,7 @@ class ResultsDialog(QDialog):
         """)
         close_x.clicked.connect(self.reject)
         h_lay.addWidget(close_x)
+        install_drag_handle(self, [header, icon_lbl, title, subtitle])
 
         layout.addWidget(header)
 
@@ -207,23 +210,27 @@ class ResultsDialog(QDialog):
         f_lay.setContentsMargins(16, 12, 16, 12)
         f_lay.setSpacing(10)
 
+        filter_title = QLabel("Choisir les résultats à consulter")
+        filter_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {TEXT_HI};")
+        f_lay.addWidget(filter_title)
+
         # Ligne 1 : Professeur et Cours
         f_row1 = QHBoxLayout()
         f_row1.setSpacing(12)
 
-        p_lbl = QLabel("Professeur :")
+        p_lbl = QLabel("Professeur")
         p_lbl.setStyleSheet(f"color: {TEXT_LO}; font-size: 12px; font-weight: 600;")
         self.prof_combo = QComboBox()
         self.prof_combo.setMinimumWidth(240)
-        self.prof_combo.currentIndexChanged.connect(self.load_results)
+        self.prof_combo.currentIndexChanged.connect(self._sync_year_with_course)
         f_row1.addWidget(p_lbl)
         f_row1.addWidget(self.prof_combo, stretch=2)
 
-        c_lbl = QLabel("Cours :")
+        c_lbl = QLabel("Cours")
         c_lbl.setStyleSheet(f"color: {TEXT_LO}; font-size: 12px; font-weight: 600;")
         self.course_combo = QComboBox()
         self.course_combo.setMinimumWidth(200)
-        self.course_combo.currentIndexChanged.connect(self.load_results)
+        self.course_combo.currentIndexChanged.connect(self._sync_year_with_course)
         f_row1.addWidget(c_lbl)
         f_row1.addWidget(self.course_combo, stretch=2)
         f_lay.addLayout(f_row1)
@@ -232,18 +239,20 @@ class ResultsDialog(QDialog):
         f_row2 = QHBoxLayout()
         f_row2.setSpacing(12)
 
-        per_lbl = QLabel("Période :")
+        per_lbl = QLabel("Période")
         per_lbl.setStyleSheet(f"color: {TEXT_LO}; font-size: 12px; font-weight: 600;")
         self.period_combo = QComboBox()
-        self.period_combo.addItems(["Semestre 1", "Semestre 2", "Annuel", "E2E"])
+        self.period_combo.setEditable(True)
+        self.period_combo.lineEdit().setPlaceholderText("Période enregistrée dans l’évaluation")
         self.period_combo.currentIndexChanged.connect(self.load_results)
         f_row2.addWidget(per_lbl)
         f_row2.addWidget(self.period_combo, stretch=1)
 
-        y_lbl = QLabel("Année :")
+        y_lbl = QLabel("Année académique")
         y_lbl.setStyleSheet(f"color: {TEXT_LO}; font-size: 12px; font-weight: 600;")
         self.year_combo = QComboBox()
-        self.year_combo.addItems(["2025-2026", "2024-2025", "2023-2024"])
+        self.year_combo.setEditable(True)
+        self.year_combo.lineEdit().setPlaceholderText("Année académique du cours")
         self.year_combo.currentIndexChanged.connect(self.load_results)
         f_row2.addWidget(y_lbl)
         f_row2.addWidget(self.year_combo, stretch=1)
@@ -293,8 +302,8 @@ class ResultsDialog(QDialog):
 
         s_mid = QVBoxLayout()
         s_mid.setSpacing(6)
-        self.score_label = QLabel("Note globale moyenne : — / 5.0 (0 avis)")
-        self.score_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #f8fafc;")
+        self.score_label = QLabel("Moyenne générale · Nombre d’évaluations")
+        self.score_label.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {TEXT_HI};")
         s_mid.addWidget(self.score_label)
 
         self.progress_bar = QProgressBar()
@@ -331,8 +340,11 @@ class ResultsDialog(QDialog):
         layout.addWidget(self.score_card)
 
         # ── 4. Tableau des critères ───────────────────────────────────────────
+        criteria_title = QLabel("Détail par critère")
+        criteria_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {TEXT_HI};")
+        layout.addWidget(criteria_title)
         self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Critère pédagogique", "Note moyenne", "Avis enregistrés"])
+        self.table.setHorizontalHeaderLabels(["Critère évalué", "Moyenne / 5", "Nombre de réponses"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -343,7 +355,7 @@ class ResultsDialog(QDialog):
                 background-color: {CARD};
                 border: 1px solid {BORDER};
                 border-radius: 10px;
-                color: #f8fafc;
+                color: {TEXT_HI};
                 gridline-color: {BORDER};
                 font-size: 13px;
             }}
@@ -362,6 +374,12 @@ class ResultsDialog(QDialog):
             }}
         """)
         layout.addWidget(self.table)
+        self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet(self.table.styleSheet() + f"""
+            QTableWidget {{ alternate-background-color: #f8fbff; }}
+            QTableWidget::item:selected {{ background-color: #dbeafe; color: {TEXT_HI}; }}
+        """)
 
         # ── 5. Bannière d'état ────────────────────────────────────────────────
         self.status_banner = QLabel("Chargement des résultats...")
@@ -401,12 +419,19 @@ class ResultsDialog(QDialog):
 
     def _load_filters_and_data(self):
         """Remplit les listes déroulantes et charge le résultat initial."""
-        criteria = CriteriaAPI.get_all() or []
+        criteria = CriteriaAPI.get_all()
+        criteria = criteria or []
         self.criteria_names = {c.get("id"): c.get("name") for c in criteria if c.get("id")}
+        parent = self.parent()
+        evaluations = []
+        if str(getattr(parent, "user_role", "")).upper() in {"ADMIN", "SUPER_ADMIN"}:
+            evaluations = EvaluationsAPI.get_all() or []
+        self._evaluations = evaluations
 
         self.prof_combo.blockSignals(True)
         self.prof_combo.clear()
-        profs = ProfessorsAPI.get_active() or ProfessorsAPI.get_all() or []
+        # Les résultats historiques peuvent concerner un professeur désormais inactif.
+        profs = ProfessorsAPI.get_all() or []
         def _get_id(x):
             try:
                 return int(x.get("id", 0))
@@ -417,6 +442,10 @@ class ResultsDialog(QDialog):
         for p in profs:
             label = f"{p.get('first_name', '')} {p.get('last_name', '')} ({p.get('department', '')})"
             self.prof_combo.addItem(label, userData=p.get("id"))
+        professor_ids = {p.get("id") for p in profs}
+        for professor_id in sorted({e.get("professor_id") for e in evaluations} - professor_ids):
+            if professor_id:
+                self.prof_combo.addItem(f"Professeur #{professor_id} (historique)", userData=professor_id)
         if self.initial_prof_id:
             idx = self.prof_combo.findData(self.initial_prof_id)
             if idx >= 0:
@@ -426,17 +455,83 @@ class ResultsDialog(QDialog):
         self.course_combo.blockSignals(True)
         self.course_combo.clear()
         courses = CoursesAPI.get_all() or []
+        self._courses = courses
         if courses and any(_get_id(x) > 0 for x in courses):
             courses.sort(key=_get_id, reverse=True)
+        years = set()
         for c in courses:
             label = f"{c.get('code')} — {c.get('name')}"
             self.course_combo.addItem(label, userData=c.get("id"))
+            if c.get("academic_year"):
+                years.add(str(c["academic_year"]))
+        course_ids = {c.get("id") for c in courses}
+        for course_id in sorted({e.get("course_id") for e in evaluations} - course_ids):
+            if course_id:
+                self.course_combo.addItem(f"Cours #{course_id} (historique)", userData=course_id)
         if self.initial_course_id:
             idx = self.course_combo.findData(self.initial_course_id)
             if idx >= 0:
                 self.course_combo.setCurrentIndex(idx)
         self.course_combo.blockSignals(False)
 
+        # Le backend ne fournit pas de route de découverte des périodes.
+        # Les comptes administrateurs peuvent les charger depuis les vraies évaluations.
+        periods = sorted({str(e["period"]) for e in evaluations if e.get("period")})
+        years.update(str(e["academic_year"]) for e in evaluations if e.get("academic_year"))
+
+        self.year_combo.blockSignals(True)
+        self.year_combo.clear()
+        self.year_combo.addItems(sorted(years, reverse=True))
+        current_course = next((c for c in courses if c.get("id") == self.course_combo.currentData()), {})
+        selected_year = self.initial_year or current_course.get("academic_year", "")
+        if selected_year:
+            self.year_combo.setEditText(str(selected_year))
+        self.year_combo.blockSignals(False)
+
+        self.period_combo.blockSignals(True)
+        self.period_combo.clear()
+        period_options = sorted(set(periods) | {"Semestre 1", "Semestre 2", "Annuel"})
+        self.period_combo.addItems(period_options)
+        if self.initial_period:
+            self.period_combo.setEditText(self.initial_period)
+        elif periods:
+            self.period_combo.setCurrentText(periods[0])
+        else:
+            self.period_combo.setCurrentText("Semestre 1")
+        self.period_combo.blockSignals(False)
+
+        errors = [
+            error for error in (
+                CriteriaAPI.last_error,
+                ProfessorsAPI.last_error,
+                CoursesAPI.last_error,
+                EvaluationsAPI.last_error if str(getattr(parent, "user_role", "")).upper() in {"ADMIN", "SUPER_ADMIN"} else None,
+            ) if error
+        ]
+        if errors:
+            self.status_banner.setText("API indisponible : " + " • ".join(errors))
+        elif not profs or not courses:
+            self.status_banner.setText("L’API ne renvoie aucun professeur ou cours consultable.")
+
+        self.load_results()
+
+    def _sync_year_with_course(self):
+        selected_course = self.course_combo.currentData()
+        course = next(
+            (item for item in self._courses if item.get("id") == selected_course),
+            None,
+        )
+        if course and course.get("academic_year"):
+            self.year_combo.setEditText(str(course["academic_year"]))
+        else:
+            matching = [
+                item for item in self._evaluations
+                if item.get("course_id") == selected_course
+                and item.get("professor_id") == self.prof_combo.currentData()
+            ]
+            if matching:
+                self.year_combo.setEditText(str(matching[0].get("academic_year", "")))
+                self.period_combo.setEditText(str(matching[0].get("period", "")))
         self.load_results()
 
     def load_results(self):
@@ -445,7 +540,7 @@ class ResultsDialog(QDialog):
         period = self.period_combo.currentText()
         academic_year = self.year_combo.currentText()
 
-        if not prof_id or not course_id:
+        if not prof_id or not course_id or not academic_year.strip() or not period.strip():
             return
 
         res = None
@@ -468,10 +563,12 @@ class ResultsDialog(QDialog):
             col = get_score_color(avg)
             qual = get_score_label(avg).upper()
 
-            self.score_val_lbl.setText(f"{avg:.2f}")
+            self.score_val_lbl.setText(f"{avg:.2f} / 5")
             self.score_val_lbl.setStyleSheet(f"color: {col}; font-size: 32px; font-weight: 900;")
 
-            self.score_label.setText(f"Note globale moyenne : {avg:.2f} / 5.0 ({tot} avis)")
+            self.score_label.setText(
+                f"Moyenne générale · {tot} {'évaluation' if tot == 1 else 'évaluations'}"
+            )
             self.badge_lbl.setText(f"  {qual}  ")
             self.badge_lbl.setStyleSheet(f"""
                 background-color: {col}22;
@@ -496,11 +593,14 @@ class ResultsDialog(QDialog):
                 }}
             """)
 
-            self.status_banner.setText(f"✓ Résultats réels certifiés par l'API REST Go ({tot} évaluations enregistrées)")
+            self.status_banner.setText(
+                f"Résultats chargés · {tot} "
+                f"{'évaluation enregistrée' if tot == 1 else 'évaluations enregistrées'} pour la sélection."
+            )
             self.status_banner.setStyleSheet("""
-                background-color: #064e3b;
-                color: #6ee7b7;
-                border: 1px solid #10b981;
+                background-color: #ecfdf5;
+                color: #047857;
+                border: 1px solid #a7f3d0;
                 border-radius: 8px;
                 padding: 10px 14px;
                 font-size: 12px;
@@ -511,7 +611,7 @@ class ResultsDialog(QDialog):
             self.table.setRowCount(len(crit_list))
             for row, item in enumerate(crit_list):
                 cid = item.get("criterion_id")
-                c_name = self.criteria_names.get(cid, f"Critère #{cid}")
+                c_name = self.criteria_names.get(cid) or item.get("criterion_name") or "Critère sans nom"
                 c_avg = float(item.get("average", 0.0))
                 c_resp = int(item.get("responses", 0))
                 c_col = get_score_color(c_avg)
@@ -519,9 +619,10 @@ class ResultsDialog(QDialog):
                 it0 = QTableWidgetItem(f"  {c_name}")
                 it1 = QTableWidgetItem(f"{c_avg:.2f} / 5.0")
                 it1.setTextAlignment(Qt.AlignCenter)
-                it1.setForeground(Qt.white)
-                it2 = QTableWidgetItem(f"{c_resp} avis")
+                it1.setForeground(QColor(c_col))
+                it2 = QTableWidgetItem(str(c_resp))
                 it2.setTextAlignment(Qt.AlignCenter)
+                it2.setForeground(QColor(TEXT_MID))
 
                 self.table.setItem(row, 0, it0)
                 self.table.setItem(row, 1, it1)
@@ -530,7 +631,7 @@ class ResultsDialog(QDialog):
             self.score_val_lbl.setText("—")
             self.score_val_lbl.setStyleSheet(f"color: {TEXT_LO}; font-size: 32px; font-weight: 900;")
 
-            self.score_label.setText("Note globale moyenne : Aucune évaluation")
+            self.score_label.setText("Aucune réponse pour ces filtres")
             self.badge_lbl.setText("  AUCUN AVIS  ")
             self.badge_lbl.setStyleSheet(f"""
                 background-color: {BG};
@@ -555,11 +656,17 @@ class ResultsDialog(QDialog):
                 }}
             """)
 
-            self.status_banner.setText("ℹ Aucune évaluation enregistrée pour ce cours et cette période dans la base de données.")
+            api_error = ResultsAPI.last_error or ""
+            no_data = "no evaluations found" in api_error.lower() or "no answers" in api_error.lower()
+            self.status_banner.setText(
+                "ℹ Aucune évaluation enregistrée pour ce cours et cette période."
+                if no_data or not api_error
+                else f"Impossible de charger les résultats : {api_error}"
+            )
             self.status_banner.setStyleSheet(f"""
-                background-color: #451a03;
-                color: #fde68a;
-                border: 1px solid #d97706;
+                background-color: {'#fffbeb' if no_data or not api_error else '#fef2f2'};
+                color: {'#92400e' if no_data or not api_error else '#b91c1c'};
+                border: 1px solid {'#fcd34d' if no_data or not api_error else '#fecaca'};
                 border-radius: 8px;
                 padding: 10px 14px;
                 font-size: 12px;

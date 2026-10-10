@@ -89,8 +89,8 @@ class NavbarSidebarDesigner:
         if w := getattr(mw, "widget_2", None):
             w.setStyleSheet(f"""
                 QWidget {{
-                    background-color: {CARD};
-                    border-bottom: 1px solid {BORDER};
+                    background-color: transparent;
+                    border: none;
                 }}
             """)
             w.setMinimumHeight(48)

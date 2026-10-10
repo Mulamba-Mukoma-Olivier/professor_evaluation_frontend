@@ -28,7 +28,15 @@ class AuthAPI:
             
             if response.status_code == 200:
                 data = response.json()
-                api_client.set_token(data.get("access_token"))
+                token = data.get("access_token")
+                user = data.get("user")
+                if not token or not isinstance(user, dict):
+                    cls.last_error = "La réponse de connexion ne contient pas de session valide."
+                    api_client.clear_token()
+                    return None
+                api_client.set_token(token)
+                from logic.session_store import SessionStore
+                SessionStore.save(token, user)
                 return data
             else:
                 try:

@@ -14,20 +14,24 @@ class ProfessorsAPI:
         """
         cls.last_error = None
         try:
-            response = api_client.get("/professors", {
-                "page": page,
-                "page_size": page_size
-            })
-            
-            if response.status_code == 200:
+            items = []
+            current_page = page
+            while True:
+                response = api_client.get("/professors", {"page": current_page, "page_size": page_size})
+                if response.status_code != 200:
+                    try:
+                        cls.last_error = response.json().get("error")
+                    except Exception:
+                        cls.last_error = f"Erreur {response.status_code}"
+                    return None
                 data = response.json()
-                return data.get("data", [])
-            else:
-                try:
-                    cls.last_error = response.json().get("error")
-                except Exception:
-                    cls.last_error = f"Erreur {response.status_code}"
-                return None
+                batch = data.get("data") or []
+                items.extend(batch)
+                pagination = data.get("pagination") or {}
+                total_pages = int(pagination.get("total_pages", current_page))
+                if current_page >= total_pages or not batch:
+                    return items
+                current_page += 1
         except Exception as e:
             cls.last_error = str(e)
             print(f"Erreur lors de la récupération des professeurs: {e}")

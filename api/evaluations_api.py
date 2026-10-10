@@ -101,24 +101,6 @@ class EvaluationsAPI:
             print(f"Erreur lors de la création de l'évaluation: {e}")
             return None
 
-    @classmethod
-    def delete(cls, evaluation_id: int) -> bool:
-        """Supprime une évaluation."""
-        cls.last_error = None
-        try:
-            response = api_client.delete(f"/evaluations/{evaluation_id}")
-            if response.status_code == 200:
-                return True
-            try:
-                cls.last_error = response.json().get("error")
-            except Exception:
-                cls.last_error = f"Erreur {response.status_code}"
-            return False
-        except Exception as e:
-            cls.last_error = str(e)
-            return False
-
-
 from api.results_api import ResultsAPI
 
 __all__ = ["EvaluationsAPI", "ResultsAPI"]

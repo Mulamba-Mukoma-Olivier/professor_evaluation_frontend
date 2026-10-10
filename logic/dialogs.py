@@ -16,22 +16,23 @@ from api.professors_api import ProfessorsAPI
 from api.courses_api import CoursesAPI
 from api.criteria_api import CriteriaAPI
 from api.eligibility_api import EligibilityAPI
+from logic.frameless_windows import install_drag_handle
 
-# ─── Palette Dark Corporate ───────────────────────────────────────────────────
-BG       = "#0f172a"
-CARD     = "#1e293b"
-BORDER   = "#334155"
-BLUE     = "#3b82f6"
-BLUE_DIM = "#1d4ed8"
-PURPLE   = "#8b5cf6"
-PURPLE_D = "#5b21b6"
-AMBER    = "#f59e0b"
-AMBER_D  = "#78350f"
-GREEN    = "#10b981"
-GREEN_D  = "#065f46"
-TEXT_HI  = "#f8fafc"
-TEXT_MID = "#cbd5e1"
-TEXT_LO  = "#94a3b8"
+# ─── Palette claire et cohérente avec l'interface principale ──────────────────
+BG       = "#f4f8fc"
+CARD     = "#ffffff"
+BORDER   = "#dbe5f0"
+BLUE     = "#2563eb"
+BLUE_DIM = "#eff6ff"
+PURPLE   = "#7c3aed"
+PURPLE_D = "#ede9fe"
+AMBER    = "#d97706"
+AMBER_D  = "#fffbeb"
+GREEN    = "#059669"
+GREEN_D  = "#ecfdf5"
+TEXT_HI  = "#123b66"
+TEXT_MID = "#456b8f"
+TEXT_LO  = "#647b94"
 
 DIALOG_STYLE = f"""
 QDialog {{
@@ -44,15 +45,17 @@ QLabel {{
     padding: 0px;
 }}
 QLineEdit, QComboBox, QSpinBox, QTextEdit {{
-    background-color: {BG};
+    background-color: {CARD};
     border: 1px solid {BORDER};
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 8px 12px;
     color: {TEXT_HI};
     font-size: 13px;
+    selection-background-color: #bfdbfe;
+    selection-color: {TEXT_HI};
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QTextEdit:focus {{
-    border-color: {BLUE};
+    border: 1px solid {BLUE};
 }}
 QComboBox QAbstractItemView {{
     background-color: {CARD};
@@ -75,7 +78,7 @@ QCheckBox::indicator {{
     width: 20px;
     height: 20px;
     border-radius: 5px;
-    border: 2px solid #475569;
+    border: 2px solid {BORDER};
     background-color: {BG};
 }}
 QCheckBox::indicator:checked {{
@@ -164,7 +167,7 @@ class _FramelessBaseDialog(QDialog):
         t_box = QVBoxLayout()
         t_box.setSpacing(3)
         t = QLabel(title_txt)
-        t.setStyleSheet("font-size: 17px; font-weight: bold; color: #ffffff;")
+        t.setStyleSheet(f"font-size: 17px; font-weight: 800; color: {TEXT_HI};")
         s = QLabel(sub_txt)
         s.setStyleSheet(f"font-size: 12px; color: {TEXT_LO};")
         t_box.addWidget(t)
@@ -190,6 +193,7 @@ class _FramelessBaseDialog(QDialog):
         """)
         close_x.clicked.connect(self.reject)
         h_lay.addWidget(close_x)
+        install_drag_handle(self, [header, icon, t, s])
 
         return header
 
@@ -271,14 +275,14 @@ class ProfessorDialog(_FramelessBaseDialog):
         self.cancel_btn.setFixedSize(110, 36)
         self.cancel_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {BORDER};
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
+                background-color: {CARD};
+                color: {TEXT_HI};
+                border: 1px solid {BORDER};
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: #475569; }}
+            QPushButton:hover {{ background-color: {BG}; }}
         """)
         self.cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(self.cancel_btn)
@@ -399,8 +403,7 @@ class CourseDialog(_FramelessBaseDialog):
         self.department_input.setPlaceholderText("Ex: Informatique")
 
         self.year_input = QLineEdit()
-        self.year_input.setPlaceholderText("Ex: 2025-2026")
-        self.year_input.setText("2025-2026")
+        self.year_input.setPlaceholderText("Ex. 2026-2027")
 
         self.description_input = QTextEdit()
         self.description_input.setPlaceholderText("Description sommaire des objectifs du cours")
@@ -430,14 +433,14 @@ class CourseDialog(_FramelessBaseDialog):
         self.cancel_btn.setFixedSize(110, 36)
         self.cancel_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {BORDER};
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
+                background-color: {CARD};
+                color: {TEXT_HI};
+                border: 1px solid {BORDER};
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: #475569; }}
+            QPushButton:hover {{ background-color: {BG}; }}
         """)
         self.cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(self.cancel_btn)
@@ -464,7 +467,7 @@ class CourseDialog(_FramelessBaseDialog):
             self.code_input.setText(str(self.course.get("code", "")))
             self.name_input.setText(str(self.course.get("name", "")))
             self.department_input.setText(str(self.course.get("department", "")))
-            self.year_input.setText(str(self.course.get("academic_year", "2025-2026")))
+            self.year_input.setText(str(self.course.get("academic_year", "")))
             self.description_input.setPlainText(str(self.course.get("description", "")))
 
     def save(self):
@@ -521,47 +524,86 @@ class CriterionDialog(_FramelessBaseDialog):
         self.setWindowTitle("Modifier le Critère" if self.is_edit else "Ajouter un Critère — EvalPro")
         self.setStyleSheet(DIALOG_STYLE)
 
-        main_lay, _ = self._setup_container(fixed_width=540)
+        main_lay, _ = self._setup_container(fixed_width=640)
 
         t_title = "Modifier le Critère" if self.is_edit else "Nouveau Critère"
-        t_sub = "Mise à jour des paramètres du critère" if self.is_edit else "Définissez un indicateur d'évaluation pédagogique"
+        t_sub = (
+            "Ajustez les informations utilisées dans les évaluations."
+            if self.is_edit else
+            "Créez un repère clair pour guider l'évaluation des cours."
+        )
         header = self._create_header("CR", AMBER_D, AMBER, t_title, t_sub)
         main_lay.addWidget(header)
 
         card = QFrame()
         card.setObjectName("formCard")
-        card.setStyleSheet(f"QFrame#formCard {{ background-color: {CARD}; border: 1px solid {BORDER}; border-radius: 12px; }}")
-        f_lay = QGridLayout(card)
-        f_lay.setContentsMargins(18, 18, 18, 18)
-        f_lay.setHorizontalSpacing(16)
-        f_lay.setVerticalSpacing(12)
+        card.setStyleSheet(f"QFrame#formCard {{ background-color: {CARD}; border: 1px solid {BORDER}; border-radius: 14px; }}")
+        f_lay = QVBoxLayout(card)
+        f_lay.setContentsMargins(22, 20, 22, 20)
+        f_lay.setSpacing(8)
 
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Ex: Ponctualité, Pédagogie, Clarté...")
+        self.name_input.setPlaceholderText("Ex. : Clarté des explications")
+        self.name_input.setMinimumHeight(44)
 
         self.description_input = QTextEdit()
-        self.description_input.setPlaceholderText("Description détaillée de ce qui est évalué")
-        self.description_input.setFixedHeight(75)
+        self.description_input.setPlaceholderText("Précisez ce que l'étudiant doit observer pour noter ce critère.")
+        self.description_input.setFixedHeight(92)
 
         self.max_score_spin = QSpinBox()
-        self.max_score_spin.setRange(1, 20)
+        self.max_score_spin.setRange(1, 5)
         self.max_score_spin.setValue(5)
-        self.max_score_spin.setFixedHeight(34)
+        self.max_score_spin.setFixedSize(100, 42)
 
         self.active_check = QCheckBox("Activer ce critère dans les formulaires étudiants")
         self.active_check.setChecked(True)
 
-        fields = [
-            ("Intitulé *", self.name_input),
-            ("Description :", self.description_input),
-            ("Score max *", self.max_score_spin),
-            ("Statut :", self.active_check),
-        ]
-        for row, (lbl_txt, widget) in enumerate(fields):
-            l = QLabel(lbl_txt)
-            l.setStyleSheet(f"color: {TEXT_LO}; font-size: 12px; font-weight: 600;")
-            f_lay.addWidget(l, row, 0)
-            f_lay.addWidget(widget, row, 1)
+        def add_field(label_text, widget, help_text=None):
+            label = QLabel(label_text)
+            label.setStyleSheet(f"color: {TEXT_HI}; font-size: 13px; font-weight: 700;")
+            f_lay.addWidget(label)
+            f_lay.addWidget(widget)
+            if help_text:
+                hint = QLabel(help_text)
+                hint.setWordWrap(True)
+                hint.setStyleSheet(f"color: {TEXT_LO}; font-size: 11px;")
+                f_lay.addWidget(hint)
+
+        add_field("Nom du critère *", self.name_input)
+        add_field(
+            "Description",
+            self.description_input,
+            "Cette description aide les étudiants à comprendre ce qu'ils évaluent.",
+        )
+
+        options = QFrame()
+        options.setStyleSheet(f"QFrame {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 10px; }}")
+        options_lay = QHBoxLayout(options)
+        options_lay.setContentsMargins(14, 12, 14, 12)
+        options_lay.setSpacing(14)
+        score_box = QVBoxLayout()
+        score_label = QLabel("NOTE MAXIMALE")
+        score_label.setStyleSheet(f"color: {TEXT_LO}; font-size: 10px; font-weight: 800; letter-spacing: 0.5px;")
+        score_box.addWidget(score_label)
+        score_box.addWidget(self.max_score_spin)
+        score_hint = QLabel("Échelle utilisée par les étudiants : 1 à la note maximale.")
+        score_hint.setWordWrap(True)
+        score_hint.setStyleSheet(f"color: {TEXT_LO}; font-size: 10px;")
+        score_box.addWidget(score_hint)
+        options_lay.addLayout(score_box, 1)
+
+        status_box = QFrame()
+        status_box.setStyleSheet(f"QFrame {{ background: {CARD}; border: 1px solid {BORDER}; border-radius: 9px; }}")
+        status_lay = QVBoxLayout(status_box)
+        status_lay.setContentsMargins(12, 12, 12, 12)
+        status_lay.addWidget(self.active_check)
+        status_hint = QLabel("Un critère désactivé n'apparaît plus dans les formulaires.")
+        status_hint.setWordWrap(True)
+        status_hint.setStyleSheet(f"color: {TEXT_LO}; font-size: 10px; border: none;")
+        status_lay.addWidget(status_hint)
+        options_lay.addWidget(status_box, 1)
+        f_lay.addSpacing(6)
+        f_lay.addWidget(options)
 
         main_lay.addWidget(card)
 
@@ -571,34 +613,35 @@ class CriterionDialog(_FramelessBaseDialog):
 
         self.cancel_btn = QPushButton("Annuler")
         self.cancel_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        self.cancel_btn.setFixedSize(110, 36)
+        self.cancel_btn.setFixedSize(116, 40)
         self.cancel_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {BORDER};
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
+                background-color: {CARD};
+                color: {TEXT_HI};
+                border: 1px solid {BORDER};
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: #475569; }}
+            QPushButton:hover {{ background-color: {BG}; }}
         """)
         self.cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(self.cancel_btn)
 
         self.save_btn = QPushButton("Enregistrer")
         self.save_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        self.save_btn.setFixedSize(120, 36)
+        self.save_btn.setFixedSize(170, 40)
+        self.save_btn.setText("Enregistrer les changements" if self.is_edit else "Créer le critère")
         self.save_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {AMBER};
+                background-color: {BLUE};
                 color: #ffffff;
                 border: none;
-                border-radius: 6px;
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: #d97706; }}
+            QPushButton:hover {{ background-color: #1d4ed8; }}
         """)
         self.save_btn.clicked.connect(self.save)
         btn_row.addWidget(self.save_btn)
@@ -656,6 +699,8 @@ class EligibilityAdminDialog(_FramelessBaseDialog):
     def __init__(self, parent=None, student_id: int = 1):
         super().__init__(parent)
         self.student_id = student_id
+        self.has_record = False
+        self.lookup_failed = False
         self.setWindowTitle(f"Gestion de l'Éligibilité — Étudiant #{student_id}")
         self.setStyleSheet(DIALOG_STYLE)
 
@@ -701,6 +746,12 @@ class EligibilityAdminDialog(_FramelessBaseDialog):
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
+        self.delete_btn = QPushButton("Supprimer la fiche")
+        self.delete_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        self.delete_btn.setStyleSheet("QPushButton { background: #7f1d1d; color: white; border: none; border-radius: 6px; padding: 8px 12px; font-weight: bold; }")
+        self.delete_btn.setVisible(False)
+        self.delete_btn.clicked.connect(self.delete_record)
+        btn_row.addWidget(self.delete_btn)
         btn_row.addStretch()
 
         self.cancel_btn = QPushButton("Annuler")
@@ -708,14 +759,14 @@ class EligibilityAdminDialog(_FramelessBaseDialog):
         self.cancel_btn.setFixedSize(110, 36)
         self.cancel_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {BORDER};
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
+                background-color: {CARD};
+                color: {TEXT_HI};
+                border: 1px solid {BORDER};
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: #475569; }}
+            QPushButton:hover {{ background-color: {BG}; }}
         """)
         self.cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(self.cancel_btn)
@@ -773,6 +824,8 @@ class EligibilityAdminDialog(_FramelessBaseDialog):
     def load_data(self):
         data = EligibilityAPI.check(self.student_id)
         if data:
+            self.has_record = True
+            self.delete_btn.setVisible(True)
             self.enrollment_cb.blockSignals(True)
             self.academic_fees_cb.blockSignals(True)
             self.lab_fees_cb.blockSignals(True)
@@ -789,7 +842,7 @@ class EligibilityAdminDialog(_FramelessBaseDialog):
             self.access_fees_cb.blockSignals(False)
 
             self._on_criteria_changed()
-        else:
+        elif "not found" in (EligibilityAPI.last_error or "").lower():
             self.status_lbl.setText("ℹ️ Aucune fiche existante (sera initialisée à l'enregistrement).")
             self.status_lbl.setStyleSheet(f"""
                 font-size: 12px;
@@ -800,6 +853,26 @@ class EligibilityAdminDialog(_FramelessBaseDialog):
                 color: {TEXT_LO};
                 border: 1px solid {BORDER};
             """)
+        else:
+            self.lookup_failed = True
+            self.save_btn.setEnabled(False)
+            self.status_lbl.setText("Impossible de vérifier la fiche via l’API : " + (EligibilityAPI.last_error or "erreur inconnue"))
+
+    def delete_record(self):
+        answer = QMessageBox.question(
+            self,
+            "Supprimer la fiche",
+            f"Supprimer la fiche d’éligibilité de l’étudiant #{self.student_id} ?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        if EligibilityAPI.delete(self.student_id):
+            QMessageBox.information(self, "Fiche supprimée", "La fiche d’éligibilité a été supprimée.")
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Erreur", EligibilityAPI.last_error or "Suppression impossible.")
 
     def save(self):
         enrollment = self.enrollment_cb.isChecked()
@@ -807,14 +880,15 @@ class EligibilityAdminDialog(_FramelessBaseDialog):
         lab_fees = self.lab_fees_cb.isChecked()
         access_fees = self.access_fees_cb.isChecked()
 
-        res = EligibilityAPI.update(
-            self.student_id,
-            enrollment=enrollment,
-            academic_fees=academic_fees,
-            laboratory_fees=lab_fees,
-            access_fees=access_fees
-        )
-        if not res:
+        if self.has_record:
+            res = EligibilityAPI.update(
+                self.student_id,
+                enrollment=enrollment,
+                academic_fees=academic_fees,
+                laboratory_fees=lab_fees,
+                access_fees=access_fees
+            )
+        else:
             res = EligibilityAPI.create(
                 self.student_id,
                 enrollment=enrollment,

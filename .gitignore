@@ -1,5 +1,18 @@
+# Python
 venv/
+.venv/
 __pycache__/
-*.pyc
-.env.example
-*.txt
+*.py[cod]
+
+# Fichiers de configuration locaux; garder le modèle versionné
+.env
+.env.*
+!.env.example
+
+# Sorties PyInstaller
+/build/
+/dist/
+/*.spec
+
+# Journaux locaux
+*.log
